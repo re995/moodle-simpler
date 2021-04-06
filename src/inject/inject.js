@@ -15,13 +15,37 @@ function onLoad() {
 
     renderChanges();
 
-    reorderCourses();
-
     var editButtons = $("." + EDIT_BUTTON_CLASS);
     registerEditButtonsClick(editButtons);
 
     var hideButtons = $("." + HIDE_BUTTON_CLASS)
     registerHideButtonsClick(hideButtons);
+}
+
+function putInStorage(key, value) {
+    var values_to_store = {};
+    values_to_store[key] = value;
+    chrome.storage.sync.set(values_to_store, function() {
+        if (chrome.runtime.lastError) {
+            console.log("Error while saving", key, "=", value, runtime.lastError);
+        }
+    });
+}
+
+function removeFromStorage(key) {
+    chrome.storage.sync.remove(key, function() {
+        if (chrome.runtime.lastError) {
+            console.log("Error while removing", key, runtime.lastError);
+        }
+    });
+}
+
+function getFromStorage(key, callback) {
+    chrome.storage.sync.get(key, callback);
+}
+
+function getAllFromStorage(callback) {
+    getFromStorage(null, callback);
 }
 
 function putEditButtons(descriptors) {
@@ -47,12 +71,12 @@ function registerEditButtonsClick(editButtons) {
             else if (description.length == 0) {
                 // Prompt given empty input. Remove from storage to go back to defaults
                 // In this case, we don't know the real course number, so we just refresh so everything will be loaded
-                localStorage.removeItem(key);
+                removeFromStorage(key);
                 location.reload();
             }
             else {
                 // Prompt given actual input. Save and update
-                localStorage.setItem(button.attr('id'), description);
+                putInStorage(button.attr('id'), description);
             }
 
             renderChanges();
@@ -65,55 +89,60 @@ function registerHideButtonsClick(hideButtons) {
        var button = $(hideButtons[index])
        button.click(function() {
             var id = button.attr('id')
-            var isVisible = localStorage.getItem(id) != "false"
-            if (isVisible == null || isVisible) {
+            getFromStorage(id, function (res) {
+                var value = res[id];
+                var isVisible = value != false
+                if (isVisible == null || isVisible) {
                 // Course is currently visible. Hide it
-                localStorage.setItem(id, false);
-            }
-            else {
-                // Course is currently hidden. Show it
-                localStorage.setItem(id, true);
-            }
+                    putInStorage(id, false);
+                }
+                else {
+                    // Course is currently hidden. Show it
+                    putInStorage(id, true);
+                }
 
-            renderChanges();
+                renderChanges();
+            });
        });
     });
 }
 
 function renderChanges() {
-    for (var i = 0; i < localStorage.length; i++){
-        var key = localStorage.key(i);
-        if (key.startsWith(HIDE_COURSE_PREFIX)) {
-            var value = localStorage.getItem(key);
-            if (value.length == 0) {
-                console.warn("Nothing stored for key " + key + ". This is probably a bug");
-                continue;
-            }
+    getAllFromStorage(function(items) {
+        for (var key in items){
+            var value = items[key];
+            if (key.startsWith(HIDE_COURSE_PREFIX)) {
+                if (value.length == 0) {
+                    console.warn("Nothing stored for key " + key + ". This is probably a bug");
+                    continue;
+                }
 
-            var linkElement = $("#" + key).parent().find(".block-fcl__list__link,.___block-fcl__list__link");
+                var linkElement = $("#" + key).parent().find(".block-fcl__list__link,.___block-fcl__list__link");
 
-            if (value == "true") {
-                $(linkElement).parent().animate({'opacity':1})
-                $(linkElement).parent().attr('visible', true);
+                if (value == true) {
+                    $(linkElement).parent().animate({'opacity':1})
+                    $(linkElement).parent().attr('visible', true);
+                }
+                else {
+                    $(linkElement).parent().animate({'opacity':0.2})
+                    $(linkElement).parent().attr('visible', false);
+                }
             }
-            else {
-                $(linkElement).parent().animate({'opacity':0.2})
-                $(linkElement).parent().attr('visible', false);
+            else if (key.startsWith(STORAGE_DESCRIPTION_PREFIX)) {
+                if (value.length == 0) {
+                    console.warn("Nothing stored for key " + key + ". This is probably a bug");
+                    continue;
+                }
+
+                var linkElement = $("#" + key).parent().find(".block-fcl__list__link");
+                linkElement.attr('class', '___block-fcl__list__link');
+                linkElement.attr('title', value);
+                linkElement.html(value);
             }
         }
-        else if (key.startsWith(STORAGE_DESCRIPTION_PREFIX)) {
-            var value = localStorage.getItem(key);
-            if (value.length == 0) {
-                console.warn("Nothing stored for key " + key + ". This is probably a bug");
-                continue;
-            }
 
-            var linkElement = $("#" + key).parent().find(".block-fcl__list__link");
-            linkElement.attr('class', '___block-fcl__list__link');
-            linkElement.attr('title', value);
-            linkElement.html(value);
-        }
-    }
+        reorderCourses()
+    });
 }
 
 function reorderCourses() {

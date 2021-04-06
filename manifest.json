@@ -1,9 +1,12 @@
 {
   "name": "Moodle-Simpler",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "manifest_version": 2,
   "description": "Allows editing course names, hide courses, and sort them easily inside moodle. Built by Ron Even",
   "default_locale": "en",
+  "permissions": [
+    "storage"
+  ],
   "content_scripts": [
     {
       "matches": [
